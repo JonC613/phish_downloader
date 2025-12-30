@@ -1,154 +1,292 @@
-# Phish JSON Formatter
+# Phish Show Database & MCP Server
 
-Converts raw Phish show JSON from various APIs into a normalized, stable schema with consistent field names, ordering, and formatting.
+A comprehensive system for downloading, processing, and serving Phish show data with enhanced audio metadata and AI assistant integration.
 
-## Features
+## 🎯 Overview
 
-- **Flexible field mapping**: Automatically extracts date, venue, city, state, country, coordinates, tour, and setlist from various raw JSON formats
-- **Normalized schema**: Converts to a consistent schema with predictable structure
-- **Stable IDs**: Generates deterministic show IDs (prefer API ID, fallback to date-venue-city slug)
-- **Setlist preservation**: Maintains set/song structure with transitions and notes
-- **Batch processing**: Process single files or entire directories recursively
-- **Validation**: Built-in validation ensures required fields and proper date formatting
-- **Provenance tracking**: Records raw input filename, API source, and generation timestamp
-- **Clean output**: Pretty-printed JSON with sorted keys, UTF-8 encoding, and trailing newline
+This project creates the most complete Phish show database by combining data from multiple sources:
+- **phish.net API**: Complete setlist and show information
+- **phish.in API**: Audio availability, MP3 URLs, and enhanced metadata  
+- **Normalized processing**: Standardized data format for consistency
+- **MCP Server**: AI assistant integration with enhanced search capabilities
 
-## Installation
+## 📊 Current Database Status
+
+- **2,202 Total Shows**: Complete Phish discography (1983-2025)
+- **2,200 Enriched Shows**: 99.9% enhanced with phish.in audio metadata
+- **1,691 Shows with Complete Audio**: 76.8% have full recordings available
+- **123 Tours Identified**: Complete tour information and context
+
+## 🏗️ System Architecture
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   phish.net     │    │ JSON Formatter   │    │  phish.in API   │
+│   Downloads     │───▶│  Normalizer      │───▶│   Enricher      │
+│  (raw_shows)    │    │(normalized_shows)│    │(enriched_shows) │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                  │
+                                  ▼
+                       ┌─────────────────┐
+                       │ Enhanced MCP    │
+                       │     Server      │
+                       └─────────────────┘
+                                  │
+                                  ▼
+                       ┌─────────────────┐
+                       │ Claude Desktop  │
+                       │  Integration    │
+                       └─────────────────┘
+```
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.8+
+- Virtual environment recommended
+
+### Installation
 
 ```bash
+# Clone and setup
+git clone <repository>
 cd phish_downloader
-python -m pip install -e .
-# Or install in dev mode with pytest
-python -m pip install -e ".[dev]"
+
+# Create virtual environment
+python -m venv .venv
+.venv\Scripts\Activate.ps1  # Windows
+source .venv/bin/activate   # Linux/Mac
+
+# Install dependencies
+pip install -r requirements.txt
+pip install -e .
 ```
 
-## Usage
+### Download Complete Dataset
 
-### Command Line
-
-Format a single file:
 ```bash
-python -m phish_json_formatter --in raw_show.json --out normalized_show.json
+# Download all shows from phish.net (takes ~30 minutes)
+python -m phishnet_downloader --all
+
+# Format raw data into normalized structure
+python -c "from phish_json_formatter import format_dir; from pathlib import Path; format_dir(Path('raw_shows'), Path('normalized_shows'))"
+
+# Enrich with phish.in audio metadata (takes ~3-4 hours)
+python phish_in_syncer.py
 ```
 
-Format all JSON files in a directory (recursively):
+### Start MCP Server
+
 ```bash
-python -m phish_json_formatter --in ./raw_shows --out ./normalized_shows
+# Test the enhanced MCP server
+python test_enriched_features.py
+
+# Run MCP server
+python mcp_server_enhanced.py
 ```
 
-### Python API
+## 📦 Core Components
 
-```python
-from phish_json_formatter import normalize_show, format_file, format_dir
-from pathlib import Path
+### 1. Phish.net Downloader (`phishnet_downloader.py`)
+- Downloads complete show data from phish.net API
+- Supports year-by-year or complete dataset download
+- Automatic rate limiting and error handling
+- Creates `raw_shows/` directory with JSON files
 
-# Single show
-raw_data = {"date": "2024-01-01", "venueName": "MSG", "city": "New York", ...}
-normalized = normalize_show(raw_data, "input.json")
+```bash
+# Download specific years
+python -m phishnet_downloader --year 2023 --year 2024
 
-# Single file
-format_file(Path("raw.json"), Path("normalized.json"))
-
-# Directory (recursive)
-format_dir(Path("raw_shows"), Path("normalized_shows"))
+# Download everything  
+python -m phishnet_downloader --all
 ```
 
-## Normalized Schema
+### 2. JSON Formatter (`phish_json_formatter.py`)
+- Normalizes raw phish.net data into consistent schema
+- Handles field mapping and data validation
+- Generates stable show IDs and provenance tracking
+- Creates `normalized_shows/` directory
 
+### 3. Phish.in API Client (`phish_in_api_client.py`)
+- HTTP client for phish.in API v2 with rate limiting
+- Fetches audio metadata, MP3 URLs, and tour information
+- Handles 404 errors gracefully for missing shows
+- Provides comprehensive show enhancement data
+
+### 4. Phish.in Syncer (`phish_in_syncer.py`)
+- Enriches normalized shows with phish.in API data
+- Processes all shows chronologically with checkpoints
+- Adds audio status, duration, MP3 URLs, tour names, tags
+- Creates `enriched_shows/` directory with enhanced metadata
+
+### 5. Enhanced MCP Server (`mcp_server_enhanced.py`)
+- Model Context Protocol server for AI assistant integration
+- 6 tools supporting both normalized and enriched data
+- Audio search, statistics, show details, and setlist queries
+- Automatic fallback between enriched and normalized data
+
+## 🎵 Enhanced Features
+
+### Audio Information
+- **Audio Status**: Complete, Partial, Missing, or Unknown
+- **MP3 URLs**: Direct links to streamable recordings
+- **Duration**: Total show length in minutes
+- **Taper Notes**: Detailed recording information and lineage
+
+### Tour & Venue Data  
+- **Tour Names**: "Fall Tour 1997", "Big Cypress", etc.
+- **Venue Coordinates**: Latitude/longitude for mapping
+- **Show Context**: Previous/next show information
+
+### Tags & Metadata
+- **Recording Tags**: SBD, AUD, Matrix, etc.
+- **Special Events**: Halloween, New Year's, festivals
+- **Popularity**: Like counts and community engagement
+
+## 🔧 MCP Server Tools
+
+### Core Tools
+1. **`get_statistics`**: Database overview with audio metrics
+2. **`search_shows`**: Find shows by date, venue, tour, location
+3. **`get_show_details`**: Complete show information
+4. **`get_setlist`**: Detailed setlist with transitions and notes
+
+### Enhanced Tools  
+5. **`search_shows_by_audio`**: Filter by audio availability
+6. **`get_show_audio_info`**: Detailed audio metadata with MP3 URLs
+
+## 📂 Data Structure
+
+### Raw Shows (phish.net format)
+```json
+{
+  "showdate": "2024-12-31",
+  "venue": "Madison Square Garden",
+  "city": "New York",
+  "state": "NY", 
+  "sets": [...],
+  "api": "phish.net"
+}
+```
+
+### Normalized Shows (standardized format)
 ```json
 {
   "schema_version": "2.0",
   "show": {
-    "id": "<stable_id>",
-    "date": "YYYY-MM-DD",
-    "tour": "<string or null>",
-    "venue": {
-      "name": "<venue>",
-      "city": "<city>",
-      "state": "<state or null>",
-      "country": "<country>",
-      "lat": <float or null>,
-      "lon": <float or null>
-    }
+    "id": "2024-12-31",
+    "date": "2024-12-31", 
+    "venue": {...},
+    "tour": "New Years Run 2024"
   },
-  "setlist": [
-    {
-      "name": "<Set N or Encore>",
-      "songs": [
-        {
-          "title": "<song>",
-          "transition": "->" | null,
-          "notes": ["<note1>", "<note2>"]
-        }
-      ]
-    }
-  ],
-  "notes": {
-    "curated": ["<bullet note>"],
-    "fan_comments": [
-      {
-        "source": "<site>",
-        "author": "<name or null>",
-        "date": "<iso or null>",
-        "text": "<comment>",
-        "url": "<url or null>"
-      }
-    ]
+  "setlist": [...],
+  "notes": {...},
+  "provenance": {...}
+}
+```
+
+### Enriched Shows (phish.in enhanced)
+```json
+{
+  "schema_version": "2.0",
+  "show": {
+    "id": "2024-12-31",
+    "date": "2024-12-31",
+    "venue": {...},
+    "tour": "New Years Run 2024",
+    "audio_status": "complete",
+    "duration_ms": 12480000,
+    "tour_name": "New Years Run 2024",
+    "likes_count": 156,
+    "tags": [{"name": "SBD", "description": "Soundboard recording"}],
+    "taper_notes": "Detailed recording information..."
   },
-  "facts": [
+  "tracks": [
     {
-      "label": "<short fact>",
-      "detail": "<optional longer>",
-      "source_url": "<url or null>"
+      "title": "Wilson",
+      "mp3_url": "https://phish.in/audio/...",
+      "duration_ms": 480000,
+      "audio_status": "complete"
     }
   ],
-  "sources": [
-    {
-      "type": "api|phishnet|phish.in|setlistfm|other",
-      "url": "<url>",
-      "retrieved_at": "<iso8601>"
+  "setlist": [...],
+  "notes": {...}
+}
+```
+
+## 🌐 Additional Features
+
+### Streamlit Web Interface
+```bash
+pip install streamlit
+streamlit run streamlit_app.py
+```
+- Interactive show browser and search
+- Audio status visualization 
+- Tour and venue exploration
+
+### Docker Support
+```bash
+docker-compose up -d
+```
+- Containerized MCP server deployment
+- Persistent data volumes
+- Production-ready configuration
+
+## 🧪 Testing & Validation
+
+```bash
+# Test the enhanced features
+python test_enriched_features.py
+
+# Test famous shows
+python test_famous_shows.py
+
+# Validate MCP server
+python test_mcp.py
+```
+
+## 📈 Data Pipeline Performance
+
+- **Download Speed**: ~2,202 shows in 30 minutes
+- **Processing Rate**: ~1 show per second for formatting  
+- **Enrichment Rate**: ~1 show per 1.5 seconds with API rate limiting
+- **Total Processing Time**: ~4 hours for complete pipeline
+
+## 🔗 Claude Desktop Integration
+
+Configure in Claude Desktop settings:
+```json
+{
+  "mcpServers": {
+    "phish": {
+      "command": "python",
+      "args": ["c:/dev/phish_downloader/mcp_server_enhanced.py"],
+      "cwd": "c:/dev/phish_downloader"
     }
-  ],
-  "provenance": {
-    "raw_input": {
-      "filename": "<input file>",
-      "api": "<api name>",
-      "downloaded_at": "<iso8601 or null>"
-    },
-    "generated_at": "<iso8601>",
-    "generator": "phish-json-formatter"
   }
 }
 ```
 
-## Field Mapping
+## 📚 Documentation Files
 
-The formatter automatically searches for common field names in the raw JSON:
+- **[COMPLETE.md](COMPLETE.md)**: Detailed implementation notes
+- **[ENHANCED_FEATURES.md](ENHANCED_FEATURES.md)**: phish.in integration guide
+- **[PIPELINE.md](PIPELINE.md)**: Data processing workflow
+- **[STREAMLIT.md](STREAMLIT.md)**: Web interface documentation
 
-| Normalized | Raw candidates |
-|-----------|----------|
-| `date` | `date`, `showDate`, `show_date`, `event_date`, `eventDate` |
-| `venue.name` | `venue`, `venueName`, `venue_name`, `location` |
-| `venue.city` | `city`, `venue_city`, `venueCity` |
-| `venue.state` | `state`, `province`, `venue_state`, `venueState` |
-| `venue.country` | `country`, `venue_country`, `venueCountry` (defaults to "USA") |
-| `venue.lat` | `lat`, `latitude`, `venue_lat`, `venueLat` |
-| `venue.lon` | `lon`, `longitude`, `lng`, `venue_lon`, `venueLon` |
-| `tour` | `tour`, `tour_name`, `tourName` |
-| `show.id` | `id`, `show_id`, `showId`, `api_id`, `apiId` |
-| `setlist` | `setlist`, `sets`, `song_sets`, `songSets` |
+## 🤝 Contributing
 
-## Running Tests
+1. Fork the repository
+2. Create a feature branch  
+3. Make your changes
+4. Run tests: `python -m pytest tests/ -v`
+5. Submit a pull request
 
-```bash
-python -m pytest tests/ -v
-```
+## 📄 License
 
-All 16 tests pass:
-- Normalization (basic fields, setlist, notes, provenance, ID generation)
-- Validation (required fields, date format)
-- File operations (writes JSON, creates directories, trailing newlines, error handling)
+MIT License - see LICENSE file for details
 
-## Examples
+## 🎪 The Music Never Stopped
 
-See [test_formatter.py](tests/test_formatter.py) for complete examples with sample raw and normalized JSON.
+*This project is dedicated to preserving and sharing the complete Phish concert experience through comprehensive data integration and AI-powered exploration.*

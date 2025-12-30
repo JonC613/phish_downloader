@@ -47,6 +47,9 @@ def load_all_shows() -> List[Dict[str, Any]]:
                     show_data['setlist'] = data['setlist']
                     show_data['notes'] = data.get('notes', {})
                     show_data['facts'] = data.get('facts', [])
+                    # Include phish.in enriched data if present
+                    if 'phish_in' in data:
+                        show_data['phish_in'] = data['phish_in']
                     shows.append(show_data)
         except Exception as e:
             logger.error(f"Error loading {json_file}: {e}")
@@ -210,6 +213,76 @@ async def handle_list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {},
             },
+        ),
+        Tool(
+            name="search_shows_with_audio",
+            description="Find shows that have audio available, with optional filtering by audio status (complete/partial/missing).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "audio_status": {
+                        "type": "string",
+                        "description": "Filter by audio status: 'complete', 'partial', 'missing', or 'any' (default)",
+                        "enum": ["complete", "partial", "missing", "any"]
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Filter by year"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results (default: 50)",
+                        "default": 50
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="get_show_audio_info",
+            description="Get detailed audio information for a specific show including MP3 URLs and jam timestamps.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "Show date in YYYY-MM-DD format"
+                    }
+                },
+                "required": ["date"]
+            }
+        ),
+        Tool(
+            name="search_by_tags",
+            description="Find shows by phish.in tags like debuts, bustouts, special events, etc.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "tag": {
+                        "type": "string",
+                        "description": "Tag to search for (partial match, case-insensitive)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results (default: 50)",
+                        "default": 50
+                    }
+                },
+                "required": ["tag"]
+            }
+        ),
+        Tool(
+            name="get_venue_coordinates",
+            description="Get venue information including coordinates for mapping and proximity searches.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "venue_name": {
+                        "type": "string",
+                        "description": "Venue name to search for (partial match)"
+                    }
+                },
+                "required": ["venue_name"]
+            }
         ),
     ]
 
@@ -390,6 +463,203 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             f"**Unique Songs:** {len(all_songs)}",
             f"**Total Song Performances:** {total_song_performances}",
         ]
+        
+        return [TextContent(type="text", text="\n".join(lines))]
+    
+    elif name == "search_shows_with_audio":
+        shows = load_all_shows()
+        
+        audio_status = arguments.get('audio_status', 'any').lower()
+        year = arguments.get('year')
+        limit = arguments.get('limit', 50)
+        
+        results = []
+        for show in shows:
+            # Skip shows without phish.in data
+            if 'phish_in' not in show:
+                continue
+            
+            # Year filter
+            if year:
+                show_year = int(show.get('date', '').split('-')[0]) if show.get('date') else None
+                if show_year != year:
+                    continue
+            
+            # Audio status filter
+            show_audio_status = show.get('phish_in', {}).get('audio_status', '').lower()
+            if audio_status != 'any' and show_audio_status != audio_status:
+                continue
+            
+            results.append(show)
+            
+            if len(results) >= limit:
+                break
+        
+        if not results:
+            return [TextContent(type="text", text="No shows found with matching audio criteria.")]
+        
+        lines = [f"Found {len(results)} show(s) with audio:", ""]
+        for show in results:
+            audio_status = show.get('phish_in', {}).get('audio_status', 'unknown')
+            audio_emoji = {"complete": "🎵", "partial": "🔸", "missing": "❌"}.get(audio_status, "❓")
+            lines.append(f"{audio_emoji} {format_show_summary(show)}")
+        
+        return [TextContent(type="text", text="\n".join(lines))]
+    
+    elif name == "get_show_audio_info":
+        shows = load_all_shows()
+        target_date = arguments.get('date')
+        
+        show = None
+        for s in shows:
+            if s.get('date') == target_date:
+                show = s
+                break
+        
+        if not show:
+            return [TextContent(type="text", text=f"No show found for date: {target_date}")]
+        
+        if 'phish_in' not in show:
+            return [TextContent(type="text", text=f"No phish.in audio data available for {target_date}")]
+        
+        lines = [f"# 🎵 Audio Info for {target_date}", ""]\n        
+        phish_in = show['phish_in']
+        
+        # Audio status
+        audio_status = phish_in.get('audio_status', 'unknown')
+        audio_emoji = {"complete": "🎵", "partial": "🔸", "missing": "❌"}.get(audio_status, "❓")
+        lines.append(f"**Audio Status:** {audio_emoji} {audio_status.title()}")
+        
+        # Likes
+        if phish_in.get('likes_count') is not None:
+            lines.append(f"**Community Likes:** {phish_in['likes_count']} ❤️")
+        
+        # Taper notes
+        if phish_in.get('taper_notes'):
+            lines.append(f"**Taper Notes:** {phish_in['taper_notes']}")
+        
+        lines.append("")
+        
+        # Track info with MP3 URLs and jams
+        track_count = 0
+        mp3_count = 0
+        jam_count = 0
+        
+        for set_data in show.get('setlist', []):
+            set_num = set_data.get('set', 'Unknown')
+            lines.append(f"## Set {set_num}")
+            
+            for song in set_data.get('songs', []):
+                track_count += 1
+                title = song.get('title', 'Unknown')
+                line_parts = [f"• {title}"]
+                
+                # MP3 URL
+                if song.get('mp3_url'):
+                    mp3_count += 1
+                    line_parts.append("🎧")
+                
+                # Jam timestamps
+                if song.get('jam_starts_at_second'):
+                    jam_count += 1
+                    jam_start = song['jam_starts_at_second']
+                    jam_end = song.get('jam_ends_at_second')
+                    if jam_end:
+                        duration = jam_end - jam_start
+                        line_parts.append(f"🎸 Jam: {jam_start}s-{jam_end}s ({duration}s)")
+                    else:
+                        line_parts.append(f"🎸 Jam starts: {jam_start}s")
+                
+                # Track tags
+                if song.get('track_tags'):
+                    tags = [tag.get('name', tag) if isinstance(tag, dict) else str(tag) 
+                           for tag in song['track_tags']]
+                    line_parts.append(f"🏷️ {', '.join(tags)}")
+                
+                lines.append(" ".join(line_parts))
+        
+        lines.extend(["", f"**Summary:** {track_count} tracks, {mp3_count} with audio, {jam_count} with jams"])
+        
+        return [TextContent(type="text", text="\n".join(lines))]
+    
+    elif name == "search_by_tags":
+        shows = load_all_shows()
+        tag_query = arguments.get('tag', '').lower()
+        limit = arguments.get('limit', 50)
+        
+        results = []
+        for show in shows:
+            if 'phish_in' not in show:
+                continue
+            
+            tags = show.get('phish_in', {}).get('tags', [])
+            for tag in tags:
+                tag_name = tag.get('name', str(tag)) if isinstance(tag, dict) else str(tag)
+                if tag_query in tag_name.lower():
+                    results.append({
+                        'show': show,
+                        'matching_tags': [t for t in tags 
+                                        if tag_query in (t.get('name', str(t)) if isinstance(t, dict) else str(t)).lower()]
+                    })
+                    break
+            
+            if len(results) >= limit:
+                break
+        
+        if not results:
+            return [TextContent(type="text", text=f"No shows found with tags matching: {tag_query}")]
+        
+        lines = [f"Found {len(results)} show(s) with tags matching '{tag_query}':", ""]
+        for result in results:
+            show = result['show']
+            tags = result['matching_tags']
+            tag_names = [tag.get('name', str(tag)) if isinstance(tag, dict) else str(tag) for tag in tags]
+            lines.append(f"🏷️ {format_show_summary(show)}")
+            lines.append(f"   Tags: {', '.join(tag_names)}")
+            lines.append("")
+        
+        return [TextContent(type="text", text="\n".join(lines))]
+    
+    elif name == "get_venue_coordinates":
+        shows = load_all_shows()
+        venue_query = arguments.get('venue_name', '').lower()
+        
+        venue_info = {}
+        for show in shows:
+            if 'phish_in' not in show:
+                continue
+            
+            venue_name = show.get('venue', {}).get('name', '')
+            if venue_query not in venue_name.lower():
+                continue
+            
+            venue_data = show.get('phish_in', {}).get('venue', {})
+            if venue_data.get('latitude') and venue_data.get('longitude'):
+                key = f"{venue_name}|{show.get('venue', {}).get('city', '')}|{show.get('venue', {}).get('state', '')}"
+                if key not in venue_info:
+                    venue_info[key] = {
+                        'name': venue_name,
+                        'city': show.get('venue', {}).get('city', ''),
+                        'state': show.get('venue', {}).get('state', ''),
+                        'latitude': venue_data['latitude'],
+                        'longitude': venue_data['longitude'],
+                        'shows_count': venue_data.get('shows_count', 0),
+                        'slug': venue_data.get('slug', ''),
+                    }
+        
+        if not venue_info:
+            return [TextContent(type="text", text=f"No venue coordinates found for: {venue_query}")]
+        
+        lines = [f"Found {len(venue_info)} venue(s) matching '{venue_query}':", ""]
+        for info in venue_info.values():
+            location = f"{info['city']}, {info['state']}" if info['city'] and info['state'] else info['city'] or info['state']
+            lines.append(f"📍 **{info['name']}**")
+            if location:
+                lines.append(f"   Location: {location}")
+            lines.append(f"   Coordinates: {info['latitude']}, {info['longitude']}")
+            if info['shows_count']:
+                lines.append(f"   Total shows: {info['shows_count']}")
+            lines.append("")
         
         return [TextContent(type="text", text="\n".join(lines))]
     

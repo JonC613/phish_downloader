@@ -34,6 +34,7 @@ wheels/
 # Data files - JSON setlists
 raw_shows/*.json
 normalized_shows/*.json
+enriched_shows/*.json
 test_api_downloads/*.json
 test_formatted_api_shows/*.json
 test_normalized_shows/*.json
