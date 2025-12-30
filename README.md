@@ -1,6 +1,6 @@
-# Phish Show Database & MCP Server
+# Phish Show Database & AI Search
 
-A comprehensive system for downloading, processing, and serving Phish show data with enhanced audio metadata and AI assistant integration.
+A comprehensive database and AI-powered search system for Phish concert data, featuring semantic search, embeddings, and an interactive Streamlit interface.
 
 ## 🎯 Overview
 
@@ -8,7 +8,42 @@ This project creates the most complete Phish show database by combining data fro
 - **phish.net API**: Complete setlist and show information
 - **phish.in API**: Audio availability, MP3 URLs, and enhanced metadata  
 - **Normalized processing**: Standardized data format for consistency
+- **Semantic Search**: AI-powered search using vector embeddings
 - **MCP Server**: AI assistant integration with enhanced search capabilities
+
+## 📁 Repository Structure
+
+```
+phish_downloader/
+├── docs/                    # Documentation files
+│   ├── QUICKSTART.md
+│   ├── SEMANTIC_SEARCH_VERIFICATION.md
+│   └── ...
+├── scripts/                 # Utility scripts
+│   ├── batch_download.py
+│   ├── enrich_with_phish_in.py
+│   └── ...
+├── tests/                   # Test files
+│   ├── test_formatter.py
+│   ├── test_semantic_search_interactive.py
+│   └── ...
+├── test_data/              # Test JSON files
+├── enriched_shows/         # Enriched show data (2,200 shows)
+├── normalized_shows/       # Normalized show data
+├── raw_shows/              # Raw show data from APIs
+├── chroma_db/              # Vector database for semantic search
+│
+├── phish_ai_client.py      # AI/semantic search client
+├── phishnet_downloader.py  # PhishNet API client
+├── phish_in_api_client.py  # Phish.in API client
+├── phish_json_formatter.py # JSON normalization
+├── embedding_generator.py  # Generate vector embeddings
+├── streamlit_app.py        # Web UI (local data)
+├── streamlit_app_postgres.py # Web UI (PostgreSQL)
+├── mcp_server.py           # MCP server for Claude
+├── requirements.txt        # Python dependencies
+└── README.md              # This file
+```
 
 ## 📊 Current Database Status
 
