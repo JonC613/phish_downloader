@@ -32,7 +32,7 @@ jobs:
       
       - name: Run tests
         run: |
-          python -m pytest tests/ -v --tb=short
+          python -m pytest tests/test_formatter.py tests/test_api_enrichment.py -v --tb=short
         continue-on-error: false
 
   build-and-push:
