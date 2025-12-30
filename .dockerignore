@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+test_*/
+tests/
+*_test.py
+test_*.py
+
+# Documentation
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+
+# Data directories (will be mounted)
+raw_shows/
+test_phishnet_downloads/
+test_api_downloads/
+test_formatted_api_shows/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

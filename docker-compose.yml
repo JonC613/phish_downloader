@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -46,17 +44,27 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db_loader:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://phish_user:phish_password@postgres:5432/phish_shows
       STREAMLIT_SERVER_PORT: 8501
       STREAMLIT_SERVER_ADDRESS: 0.0.0.0
+      PYTHONUNBUFFERED: 1
     ports:
       - "8501:8501"
     volumes:
       - ./normalized_shows:/app/normalized_shows:ro
+      - ./enriched_shows:/app/enriched_shows:ro
     networks:
       - phish_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   mcp_server:
     build:

@@ -522,7 +522,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
         if 'phish_in' not in show:
             return [TextContent(type="text", text=f"No phish.in audio data available for {target_date}")]
         
-        lines = [f"# 🎵 Audio Info for {target_date}", ""]\n        
+        lines = [f"# 🎵 Audio Info for {target_date}", ""]
         phish_in = show['phish_in']
         
         # Audio status

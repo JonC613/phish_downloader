@@ -146,6 +146,7 @@ class PhishAIClient:
                 formatted_results.append({
                     'show_id': show_id,
                     'date': metadata.get('date', ''),
+                    'year': metadata.get('year', 0),
                     'venue': metadata.get('venue_name', ''),
                     'city': metadata.get('city', ''),
                     'state': metadata.get('state', ''),
@@ -239,30 +240,97 @@ class PhishAIClient:
         self,
         song_title: str,
         n_results: int = 20,
+        year: Optional[int] = None,
+        year_start: Optional[int] = None,
+        year_end: Optional[int] = None,
         audio_status: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Find notable performances of a specific song using semantic search.
+        Find shows that performed a specific song.
         
-        This finds shows where the song appears in context with notable descriptions,
-        not just any performance of the song.
+        This searches for shows containing the song, then ranks by semantic similarity
+        to find the most notable performances.
         
         Args:
-            song_title: Name of the song to search for
+            song_title: Name of the song to search for (case-insensitive)
             n_results: Maximum number of results
+            year: Filter to specific year
+            year_start: Filter to years >= this
+            year_end: Filter to years <= this
             audio_status: Filter by audio status
         
         Returns:
-            List of shows featuring notable performances of the song
+            List of shows that performed the song, ranked by relevance
         """
-        # Create a query that emphasizes the song
-        query = f"Notable {song_title} performance with extended jamming and improvisation"
+        # Build where clause for filtering (without song filter)
+        where_clauses = []
         
-        return self.semantic_search(
-            query=query,
-            n_results=n_results,
-            audio_status=audio_status
+        if year:
+            where_clauses.append({"year": {"$eq": year}})
+        if year_start:
+            where_clauses.append({"year": {"$gte": year_start}})
+        if year_end:
+            where_clauses.append({"year": {"$lte": year_end}})
+        if audio_status:
+            where_clauses.append({"audio_status": {"$eq": audio_status}})
+        
+        where = None
+        if len(where_clauses) == 1:
+            where = where_clauses[0]
+        elif len(where_clauses) > 1:
+            where = {"$and": where_clauses}
+        
+        # Create a query emphasizing the song
+        query = f"Notable {song_title} performance extended jam improvisation"
+        query_embedding = self.embedding_model.encode(query).tolist()
+        
+        # Get more results than needed to filter for song matches
+        search_limit = min(n_results * 10, 500)
+        
+        results = self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=search_limit,
+            where=where,
+            include=["documents", "metadatas", "distances"]
         )
+        
+        # Format results and filter for actual song matches
+        formatted_results = []
+        song_lower = song_title.lower()
+        
+        if results['ids'] and results['ids'][0]:
+            for i, show_id in enumerate(results['ids'][0]):
+                metadata = results['metadatas'][0][i] if results['metadatas'] else {}
+                distance = results['distances'][0][i] if results['distances'] else None
+                
+                # Check if song is in the metadata or document text
+                songs_str = metadata.get('songs', '').lower()
+                doc_text = results['documents'][0][i].lower() if results['documents'] else ''
+                
+                if song_lower not in songs_str and song_lower not in doc_text:
+                    continue
+                
+                similarity = 1 - distance if distance is not None else None
+                
+                formatted_results.append({
+                    'show_id': show_id,
+                    'date': metadata.get('date', ''),
+                    'year': metadata.get('year', 0),
+                    'venue': metadata.get('venue_name', ''),
+                    'city': metadata.get('city', ''),
+                    'state': metadata.get('state', ''),
+                    'tour': metadata.get('tour_name', ''),
+                    'audio_status': metadata.get('audio_status', 'unknown'),
+                    'song_count': metadata.get('song_count', 0),
+                    'similarity_score': similarity,
+                    'relevance_rank': len(formatted_results) + 1,
+                    'preview': results['documents'][0][i][:300] if results['documents'] else ''
+                })
+                
+                if len(formatted_results) >= n_results:
+                    break
+        
+        return formatted_results
     
     def get_recommendations(
         self,

@@ -48,6 +48,9 @@ test_raw_shows/*.json
 # Streamlit
 .streamlit/
 
+# Logs
+*.log
+
 # ChromaDB vector database
 chroma_db/
 

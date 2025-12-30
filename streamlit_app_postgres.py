@@ -6,7 +6,7 @@ import streamlit as st
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 from datetime import datetime
 import json
 
@@ -18,6 +18,31 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+
+def get_ai_client():
+    """Lazy load AI client to avoid import issues."""
+    if 'ai_client' not in st.session_state:
+        try:
+            from phish_ai_client import PhishAIClient
+            st.session_state.ai_client = PhishAIClient()
+            st.session_state.ai_available = True
+        except Exception as e:
+            st.session_state.ai_client = None
+            st.session_state.ai_available = False
+            st.session_state.ai_error = str(e)
+    return st.session_state.ai_client
+
+
+def is_ai_available():
+    """Check if AI features are available."""
+    if 'ai_available' not in st.session_state:
+        try:
+            from phish_ai_client import PhishAIClient
+            st.session_state.ai_available = True
+        except Exception:
+            st.session_state.ai_available = False
+    return st.session_state.ai_available
 
 # Custom styling
 st.markdown("""
@@ -226,6 +251,41 @@ def main():
     st.markdown('<p class="header-title">🎵 Phish Shows Database</p>', unsafe_allow_html=True)
     st.markdown('<p class="header-subtitle">Browse all recorded Phish shows from PostgreSQL</p>', unsafe_allow_html=True)
     
+    # Create tabs
+    tab1, tab2, tab3 = st.tabs(["📖 Browse Shows", "🔍 Semantic Search", "🎯 Similar Shows"])
+    
+    with tab1:
+        render_browse_tab(conn)
+    
+    with tab2:
+        render_semantic_search_tab(conn)
+    
+    with tab3:
+        render_similar_shows_tab(conn)
+    
+    # Footer
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM shows")
+        total = cursor.fetchone()[0]
+        cursor.close()
+        st.caption(f"📊 {total} total shows in database")
+    
+    with col2:
+        st.caption("🎸 Phish Shows Browser")
+        if is_ai_available():
+            st.caption("✨ AI-Powered")
+    
+    with col3:
+        st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+
+def render_browse_tab(conn):
+def render_browse_tab(conn):
+    """Render the traditional browse interface."""
     # Sidebar
     with st.sidebar:
         st.markdown("## ⚙️ Browser Settings")
@@ -303,6 +363,158 @@ def main():
     # Main content - only load details when a specific show is selected
     if 'selected_show' in locals() and selected_show:
         display_show(conn, selected_show['id'], selected_show)
+
+
+def render_semantic_search_tab(conn):
+    """Render the AI-powered semantic search interface."""
+    if not is_ai_available():
+        st.error("❌ AI features not available")
+        st.info("AI dependencies are not installed. Run: `pip install sentence-transformers chromadb`")
+        if 'ai_error' in st.session_state:
+            with st.expander("Error Details"):
+                st.error(st.session_state.ai_error)
+        return
+    
+    st.markdown("## 🔍 Semantic Search")
+    st.markdown("Search shows using natural language descriptions")
+    
+    # Initialize AI client
+    with st.spinner("Loading AI model..."):
+        client = get_ai_client()
+    
+    if client is None:
+        st.error("Failed to load AI client")
+        return
+    
+    # Search input
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        query = st.text_input(
+            "Search Query",
+            placeholder="e.g., 'exploratory type 2 jam', 'high energy first set', 'mellow acoustic'",
+            help="Describe the type of show you're looking for"
+        )
+    
+    with col2:
+        n_results = st.number_input("Results", min_value=1, max_value=20, value=5)
+    
+    if query:
+        with st.spinner("Searching..."):
+            results = client.semantic_search(query, n_results=n_results)
+        
+        if results:
+            st.success(f"Found {len(results)} matching shows")
+            
+            for i, result in enumerate(results, 1):
+                with st.expander(f"#{i} - {result['date']} at {result['venue']}", expanded=(i == 1)):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.markdown(f"**📍 Venue:** {result['venue']}")
+                        st.markdown(f"**📅 Date:** {result['date']}")
+                        st.markdown(f"**📊 Similarity:** {result['score']:.3f}")
+                    
+                    with col2:
+                        if st.button(f"View Full Details", key=f"view_{result['date']}"):
+                            # Get show from database
+                            cursor = conn.cursor(cursor_factory=RealDictCursor)
+                            cursor.execute("SELECT * FROM shows WHERE date = %s", (result['date'],))
+                            show = cursor.fetchone()
+                            cursor.close()
+                            
+                            if show:
+                                st.session_state['selected_show_id'] = show['id']
+                                st.rerun()
+                    
+                    if result.get('content'):
+                        st.markdown("**🎵 Show Content:**")
+                        st.markdown(result['content'][:500] + "..." if len(result['content']) > 500 else result['content'])
+        else:
+            st.warning("No results found")
+
+
+def render_similar_shows_tab(conn):
+    """Render the similar shows finder interface."""
+    if not is_ai_available():
+        st.error("❌ AI features not available")
+        st.info("AI dependencies are not installed.")
+        return
+    
+    st.markdown("## 🎯 Find Similar Shows")
+    st.markdown("Discover shows with similar musical characteristics")
+    
+    # Initialize AI client
+    with st.spinner("Loading AI model..."):
+        client = get_ai_client()
+    
+    if client is None:
+        st.error("Failed to load AI client")
+        return
+    
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        target_date = st.text_input(
+            "Show Date",
+            placeholder="YYYY-MM-DD (e.g., 1997-12-31)",
+            help="Enter date of a show to find similar ones"
+        )
+    
+    with col2:
+        n_similar = st.number_input("Number of Results", min_value=1, max_value=20, value=5)
+    
+    with col3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        search_button = st.button("Find Similar", type="primary")
+    
+    if search_button and target_date:
+        with st.spinner(f"Finding shows similar to {target_date}..."):
+            results = client.find_similar_shows(target_date, n_results=n_similar)
+        
+        if results:
+            st.success(f"Found {len(results)} similar shows to {target_date}")
+            
+            # Show the target show first
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("SELECT * FROM shows WHERE date = %s", (target_date,))
+            target_show = cursor.fetchone()
+            cursor.close()
+            
+            if target_show:
+                with st.container():
+                    st.markdown("### 🎯 Target Show")
+                    st.markdown(f"**{target_show['date']}** at **{target_show['venue_name']}**, {target_show['city']}, {target_show['state']}")
+                    st.markdown("---")
+            
+            st.markdown("### 🎵 Similar Shows")
+            
+            for i, result in enumerate(results, 1):
+                with st.expander(f"#{i} - {result['date']} at {result['venue']}", expanded=(i == 1)):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.markdown(f"**📍 Venue:** {result['venue']}")
+                        st.markdown(f"**📅 Date:** {result['date']}")
+                        st.markdown(f"**📊 Similarity:** {result['score']:.3f}")
+                    
+                    with col2:
+                        if st.button(f"View Details", key=f"sim_view_{result['date']}"):
+                            cursor = conn.cursor(cursor_factory=RealDictCursor)
+                            cursor.execute("SELECT * FROM shows WHERE date = %s", (result['date'],))
+                            show = cursor.fetchone()
+                            cursor.close()
+                            
+                            if show:
+                                st.session_state['selected_show_id'] = show['id']
+                                st.rerun()
+                    
+                    if result.get('content'):
+                        st.markdown("**🎵 Show Content:**")
+                        st.markdown(result['content'][:300] + "..." if len(result['content']) > 300 else result['content'])
+        else:
+            st.warning(f"No similar shows found for {target_date}")
+    elif search_button:
+        st.warning("Please enter a show date")
     
     # Footer
     st.markdown("---")
