@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "phish-shows-local": {
+      "command": "python",
+      "args": [
+        "c:\\dev\\phish_downloader\\mcp_server.py"
+      ],
+      "description": "Phish concert setlist database (local) - query shows, dates, venues, and song performance history"
+    },
+    "phish-shows-docker": {
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "phish_mcp_server",
+        "python",
+        "mcp_server.py"
+      ],
+      "description": "Phish concert setlist database (Docker container) - query shows, dates, venues, and song performance history"
+    }
+  }
+}

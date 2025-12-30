@@ -1,0 +1,15 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install required packages
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt mcp
+
+# Copy MCP server and data
+COPY mcp_server.py .
+COPY test_mcp.py .
+COPY normalized_shows/ ./normalized_shows/
+
+# Run the MCP server
+CMD ["python", "mcp_server.py"]

@@ -58,6 +58,19 @@ services:
       - phish_network
     restart: unless-stopped
 
+  mcp_server:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    container_name: phish_mcp_server
+    volumes:
+      - ./normalized_shows:/app/normalized_shows:ro
+    networks:
+      - phish_network
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
 volumes:
   postgres_data:
 
