@@ -1,0 +1,50 @@
+{
+  "facts": [],
+  "notes": {
+    "curated": [
+      "Great opening set"
+    ],
+    "fan_comments": []
+  },
+  "provenance": {
+    "generated_at": "2025-12-28T08:40:15.270249+00:00",
+    "generator": "phish-json-formatter",
+    "raw_input": {
+      "api": "phish.net",
+      "downloaded_at": "2024-01-02T00:00:00Z",
+      "filename": "test_input.json"
+    }
+  },
+  "schema_version": "2.0",
+  "setlist": [
+    {
+      "name": "Set 1",
+      "songs": [
+        {
+          "notes": [],
+          "title": "Reprise",
+          "transition": "->"
+        },
+        {
+          "notes": [],
+          "title": "Soul Planet",
+          "transition": null
+        }
+      ]
+    }
+  ],
+  "show": {
+    "date": "2024-01-01",
+    "id": "api-12345",
+    "tour": "Winter Tour 2024",
+    "venue": {
+      "city": "New York",
+      "country": "USA",
+      "lat": 40.7505,
+      "lon": -73.9934,
+      "name": "Madison Square Garden",
+      "state": "NY"
+    }
+  },
+  "sources": []
+}

@@ -1,0 +1,31 @@
+{
+  "id": "api-12345",
+  "date": "2024-01-01",
+  "venueName": "Madison Square Garden",
+  "city": "New York",
+  "state": "NY",
+  "country": "USA",
+  "lat": 40.7505,
+  "lon": -73.9934,
+  "tour": "Winter Tour 2024",
+  "api": "phish.net",
+  "downloaded_at": "2024-01-02T00:00:00Z",
+  "setlist": [
+    {
+      "name": "Set 1",
+      "songs": [
+        {
+          "title": "Reprise",
+          "transition": "->",
+          "notes": []
+        },
+        {
+          "title": "Soul Planet",
+          "transition": null,
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "notes": ["Great opening set"]
+}

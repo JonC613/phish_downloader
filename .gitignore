@@ -1,0 +1,53 @@
+# Python environment
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data files - JSON setlists
+raw_shows/*.json
+normalized_shows/*.json
+test_api_downloads/*.json
+test_formatted_api_shows/*.json
+test_normalized_shows/*.json
+test_phishnet_downloads/*.json
+test_raw_shows/*.json
+
+# Environment
+.env
+.env.local
+
+# Streamlit
+.streamlit/
+
+# Misc
+*.log
+.cache/
+.pytest_cache/
