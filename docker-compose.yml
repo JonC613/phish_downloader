@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: phish_postgres
+    environment:
+      POSTGRES_DB: phish_shows
+      POSTGRES_USER: phish_user
+      POSTGRES_PASSWORD: phish_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phish_user -d phish_shows"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - phish_network
+
+  db_loader:
+    build:
+      context: .
+      dockerfile: Dockerfile.loader
+    container_name: phish_db_loader
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://phish_user:phish_password@postgres:5432/phish_shows
+      NORMALIZED_SHOWS_DIR: /app/normalized_shows
+    volumes:
+      - ./normalized_shows:/app/normalized_shows:ro
+    networks:
+      - phish_network
+    restart: on-failure
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: phish_streamlit
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://phish_user:phish_password@postgres:5432/phish_shows
+      STREAMLIT_SERVER_PORT: 8501
+      STREAMLIT_SERVER_ADDRESS: 0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./normalized_shows:/app/normalized_shows:ro
+    networks:
+      - phish_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  phish_network:
+    driver: bridge
