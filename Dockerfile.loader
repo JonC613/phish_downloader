@@ -14,8 +14,8 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy loader script
-COPY load_postgres.py .
+# Copy loader script from scripts directory
+COPY scripts/load_postgres.py .
 
 # Run loader
 CMD ["python", "load_postgres.py"]
