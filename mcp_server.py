@@ -44,7 +44,18 @@ def load_all_shows() -> List[Dict[str, Any]]:
                 # Flatten structure: merge show metadata with setlist data
                 if 'show' in data and 'setlist' in data:
                     show_data = data['show'].copy()
-                    show_data['setlist'] = data['setlist']
+                    
+                    # Convert setlist from list to dict for easier access
+                    setlist = data['setlist']
+                    if isinstance(setlist, list):
+                        setlist_dict = {}
+                        for set_obj in setlist:
+                            set_num = set_obj.get('set', 'Unknown')
+                            setlist_dict[set_num] = set_obj.get('songs', [])
+                        show_data['setlist'] = setlist_dict
+                    else:
+                        show_data['setlist'] = setlist
+                    
                     show_data['notes'] = data.get('notes', {})
                     show_data['facts'] = data.get('facts', [])
                     # Include phish.in enriched data if present
@@ -61,9 +72,15 @@ def load_all_shows() -> List[Dict[str, Any]]:
 def format_show_summary(show: Dict[str, Any]) -> str:
     """Format a show as a summary string."""
     date = show.get('date', 'Unknown')
-    venue = show.get('venue', {}).get('name', 'Unknown Venue')
-    city = show.get('venue', {}).get('city', '')
-    state = show.get('venue', {}).get('state', '')
+    venue_obj = show.get('venue', {})
+    if isinstance(venue_obj, dict):
+        venue = venue_obj.get('name', 'Unknown Venue')
+        city = venue_obj.get('city', '')
+        state = venue_obj.get('state', '')
+    else:
+        venue = str(venue_obj)
+        city = ''
+        state = ''
     location = f"{city}, {state}" if city and state else city or state or ''
     
     summary = f"📅 {date} - 📍 {venue}"
@@ -79,9 +96,15 @@ def format_show_details(show: Dict[str, Any]) -> str:
     
     # Header
     date = show.get('date', 'Unknown')
-    venue = show.get('venue', {}).get('name', 'Unknown Venue')
-    city = show.get('venue', {}).get('city', '')
-    state = show.get('venue', {}).get('state', '')
+    venue_obj = show.get('venue', {})
+    if isinstance(venue_obj, dict):
+        venue = venue_obj.get('name', 'Unknown Venue')
+        city = venue_obj.get('city', '')
+        state = venue_obj.get('state', '')
+    else:
+        venue = str(venue_obj)
+        city = ''
+        state = ''
     location = f"{city}, {state}" if city and state else city or state or ''
     
     lines.append(f"# 🎸 Phish - {date}")
@@ -89,9 +112,11 @@ def format_show_details(show: Dict[str, Any]) -> str:
     if location:
         lines.append(f"**Location:** {location}")
     
-    tour = show.get('tour', {}).get('name')
+    tour = show.get('tour')
     if tour:
-        lines.append(f"**Tour:** {tour}")
+        tour_name = tour.get('name') if isinstance(tour, dict) else str(tour)
+        if tour_name:
+            lines.append(f"**Tour:** {tour_name}")
     
     lines.append("")
     
@@ -374,24 +399,31 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
         results = []
         for show in shows:
             setlist = show.get('setlist', {})
-            found = False
             
-            for set_num, songs in setlist.items():
-                for song in songs:
-                    if song_title in song.get('title', '').lower():
-                        results.append({
-                            'date': show.get('date'),
-                            'venue': show.get('venue', {}).get('name'),
-                            'city': show.get('venue', {}).get('city'),
-                            'state': show.get('venue', {}).get('state'),
-                            'set': set_num,
-                            'song': song.get('title'),
-                            'notes': song.get('notes', []),
-                        })
-                        found = True
+            if isinstance(setlist, dict):
+                for set_num, songs in setlist.items():
+                    if not isinstance(songs, list):
+                        continue
+                    for song in songs:
+                        if not isinstance(song, dict):
+                            continue
+                        if song_title in song.get('title', '').lower():
+                            venue_obj = show.get('venue', {})
+                            venue_name = venue_obj.get('name') if isinstance(venue_obj, dict) else str(venue_obj)
+                            city = venue_obj.get('city', '') if isinstance(venue_obj, dict) else ''
+                            state = venue_obj.get('state', '') if isinstance(venue_obj, dict) else ''
+                            results.append({
+                                'date': show.get('date'),
+                                'venue': venue_name,
+                                'city': city,
+                                'state': state,
+                                'set': set_num,
+                                'song': song.get('title'),
+                                'notes': song.get('notes', []),
+                            })
+                            break
+                    if len(results) >= limit:
                         break
-                if found:
-                    break
             
             if len(results) >= limit:
                 break
@@ -446,12 +478,15 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
         total_song_performances = 0
         for show in shows:
             setlist = show.get('setlist', {})
-            for songs in setlist.values():
-                for song in songs:
-                    title = song.get('title')
-                    if title:
-                        all_songs.add(title)
-                        total_song_performances += 1
+            if isinstance(setlist, dict):
+                for songs in setlist.values():
+                    if isinstance(songs, list):
+                        for song in songs:
+                            if isinstance(song, dict):
+                                title = song.get('title')
+                                if title:
+                                    all_songs.add(title)
+                                    total_song_performances += 1
         
         lines = [
             "# 📊 Phish Shows Database Statistics",
@@ -545,38 +580,45 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
         mp3_count = 0
         jam_count = 0
         
-        for set_data in show.get('setlist', []):
-            set_num = set_data.get('set', 'Unknown')
-            lines.append(f"## Set {set_num}")
-            
-            for song in set_data.get('songs', []):
-                track_count += 1
-                title = song.get('title', 'Unknown')
-                line_parts = [f"• {title}"]
+        setlist = show.get('setlist', {})
+        if isinstance(setlist, dict):
+            for set_num, songs in setlist.items():
+                lines.append(f"## Set {set_num}")
                 
-                # MP3 URL
-                if song.get('mp3_url'):
-                    mp3_count += 1
-                    line_parts.append("🎧")
-                
-                # Jam timestamps
-                if song.get('jam_starts_at_second'):
-                    jam_count += 1
-                    jam_start = song['jam_starts_at_second']
-                    jam_end = song.get('jam_ends_at_second')
-                    if jam_end:
-                        duration = jam_end - jam_start
-                        line_parts.append(f"🎸 Jam: {jam_start}s-{jam_end}s ({duration}s)")
-                    else:
-                        line_parts.append(f"🎸 Jam starts: {jam_start}s")
-                
-                # Track tags
-                if song.get('track_tags'):
-                    tags = [tag.get('name', tag) if isinstance(tag, dict) else str(tag) 
-                           for tag in song['track_tags']]
-                    line_parts.append(f"🏷️ {', '.join(tags)}")
-                
-                lines.append(" ".join(line_parts))
+                if not isinstance(songs, list):
+                    continue
+                    
+                for song in songs:
+                    if not isinstance(song, dict):
+                        continue
+                    
+                    track_count += 1
+                    title = song.get('title', 'Unknown')
+                    line_parts = [f"• {title}"]
+                    
+                    # MP3 URL
+                    if song.get('mp3_url'):
+                        mp3_count += 1
+                        line_parts.append("🎧")
+                    
+                    # Jam timestamps
+                    if song.get('jam_starts_at_second'):
+                        jam_count += 1
+                        jam_start = song['jam_starts_at_second']
+                        jam_end = song.get('jam_ends_at_second')
+                        if jam_end:
+                            duration = jam_end - jam_start
+                            line_parts.append(f"🎸 Jam: {jam_start}s-{jam_end}s ({duration}s)")
+                        else:
+                            line_parts.append(f"🎸 Jam starts: {jam_start}s")
+                    
+                    # Track tags
+                    if song.get('track_tags'):
+                        tags = [tag.get('name', tag) if isinstance(tag, dict) else str(tag) 
+                               for tag in song['track_tags']]
+                        line_parts.append(f"🏷️ {', '.join(tags)}")
+                    
+                    lines.append(" ".join(line_parts))
         
         lines.extend(["", f"**Summary:** {track_count} tracks, {mp3_count} with audio, {jam_count} with jams"])
         
